@@ -96,7 +96,7 @@ These documents are from Google and Kaggle's Gen AI Intensive course, which brok
 
 ## Architecture
 
-#AIzaSyAgpw6GvNOK0MIYeYwQDoh6qxser9Z0XfM
+
 
 The project follows a modular architecture based on the ADK framework:
 
