@@ -96,6 +96,8 @@ These documents are from Google and Kaggle's Gen AI Intensive course, which brok
 
 ## Architecture
 
+#AIzaSyAgpw6GvNOK0MIYeYwQDoh6qxser9Z0XfM
+
 The project follows a modular architecture based on the ADK framework:
 
 ![ADK Vertex AI RAG Architecture](.Images/ADK-VertexAI-RAG-Architecture.png)
@@ -153,14 +155,10 @@ pip install -r requirements.txt
 export GOOGLE_CLOUD_PROJECT="your-project-id" #aitrack-29a9e
 export GOOGLE_CLOUD_LOCATION="us-central1" #us-east4
 
-#export GOOGLE_CLOUD_PROJECT="aitrack-29a9e" 
-#export GOOGLE_CLOUD_LOCATION="us-east4"
-#export GOOGLE_API_KEY=AIzaSyAunpvIErYs9tUYC6htiRnqjI-8T8JGHf8
 
-#AIzaSyAQLfNbSuRAFqLHDMkOqvWPM5PIE2j2VGs # new
+adk api_server
 
-#AQ.Ab8RN6JbbbZdjJup9ocSxFTRU1kXTYIg1qYU0EtYMjThh10f_w
-#AIzaSyBAdEzIFEJSv3p41TN2kZb1WYnVmwKmOhg #old
+
 
 
 
@@ -210,9 +208,29 @@ adk web
 
 # Option 2: Run the agent directly in the terminal
 adk run rag
+
+# Option 3: Run with In-Memory Memory (DEFAULT - works automatically!)
+# When you run adk api_server without --memory_service_uri, it uses InMemoryMemoryService by default
+adk api_server rag/
+# This is equivalent to:
+# adk api_server rag/ --memory_service_uri="inmemory://"
+# 
+# ✅ PreloadMemoryTool is already configured in the agent
+# ✅ Sessions are automatically saved to memory
+# ✅ Memory works across sessions (same user_id)
+
+# Option 4: Run with Vertex AI Memory Bank (for production - long-term knowledge across sessions)
+# First, set your Agent Engine ID:
+export AGENT_ENGINE_ID="your-agent-engine-id"
+# Then start server with memory service:
+adk api_server rag/ --memory_service_uri="agentengine://${AGENT_ENGINE_ID}"
 ```
 
 The web interface provides a chat-like experience for interacting with the agent, while the direct run option is suitable for scripting and automated workflows.
+
+**Memory Options:**
+- **In-Memory Memory** (Default): Perfect for local development. No setup required. See [rag/in_memory_config.py](rag/in_memory_config.py) for details.
+- **Vertex AI Memory Bank**: For production deployments with persistent storage. See [VERTEX_AI_MEMORY_BANK_SETUP.md](VERTEX_AI_MEMORY_BANK_SETUP.md) for setup.
 
 ### Example Commands
 

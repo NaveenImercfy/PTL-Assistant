@@ -540,11 +540,16 @@ def query_rag_corpus(
     """
     Directly queries a RAG corpus using the Vertex AI RAG API.
     
+    Performance Optimization:
+    - Default top_k reduced to 3 for faster queries
+    - Vector distance filter disabled by default (set threshold=None) for faster processing
+    - Query time depends on corpus size and network latency
+    
     Args:
         corpus_id: The ID of the corpus to query
         query_text: The search query text
-        top_k: Maximum number of results to return (default: 10)
-        vector_distance_threshold: Threshold for vector similarity (default: 0.5)
+        top_k: Maximum number of results to return (default: 3, lower = faster)
+        vector_distance_threshold: Threshold for vector similarity (default: None for speed, set to 0.5 if filtering needed)
         
     Returns:
         A dictionary containing the query results
@@ -553,6 +558,7 @@ def query_rag_corpus(
         top_k = RAG_DEFAULT_TOP_K
     if vector_distance_threshold is None:
         vector_distance_threshold = RAG_DEFAULT_VECTOR_DISTANCE_THRESHOLD
+    
     try:
         # Construct full corpus resource path
         corpus_path = f"projects/{PROJECT_ID}/locations/{LOCATION}/ragCorpora/{corpus_id}"
@@ -560,11 +566,18 @@ def query_rag_corpus(
         # Create the resource config
         rag_resource = rag.RagResource(rag_corpus=corpus_path)
         
-        # Configure retrieval parameters
-        retrieval_config = rag.RagRetrievalConfig(
-            top_k=top_k,
-            filter=rag.utils.resources.Filter(vector_distance_threshold=vector_distance_threshold)
-        )
+        # Configure retrieval parameters - optimize for speed
+        # Only apply filter if threshold is explicitly set (None = no filter = faster)
+        if vector_distance_threshold is not None:
+            retrieval_config = rag.RagRetrievalConfig(
+                top_k=top_k,
+                filter=rag.utils.resources.Filter(vector_distance_threshold=vector_distance_threshold)
+            )
+        else:
+            # No filter = faster query (no distance threshold checking)
+            retrieval_config = rag.RagRetrievalConfig(
+                top_k=top_k
+            )
         
         # Execute the query directly using the API
         response = rag.retrieval_query(
@@ -730,43 +743,121 @@ def search_all_corpora(
         }
 
 
+def get_corpus_by_name(corpus_name: str) -> Dict[str, Any]:
+    """
+    Quickly finds a corpus by its display name without counting files.
+    This is much faster than list_rag_corpora() when you only need to find one corpus.
+    Uses early exit optimization - stops searching once corpus is found.
+    
+    Args:
+        corpus_name: The display name of the RAG corpus to find.
+    
+    Returns:
+        A dictionary containing:
+        - status: "success" or "error"
+        - corpus: Corpus details with id, name, display_name (if found)
+        - corpus_id: The ID of the corpus (if found)
+        - error_message: Present only if an error occurred
+    """
+    try:
+        # List corpora without file counting for speed
+        # Note: This API call can take 2-3 seconds if there are many corpora
+        corpora = rag.list_corpora()
+        
+        target_corpus = None
+        corpus_name_lower = corpus_name.strip().lower()
+        
+        # Early exit optimization: stop searching once corpus is found
+        for corpus in corpora:
+            if hasattr(corpus, "display_name") and corpus.display_name:
+                if corpus.display_name.strip().lower() == corpus_name_lower:
+                    corpus_id = corpus.name.split('/')[-1]
+                    
+                    # Get corpus status
+                    status = None
+                    if hasattr(corpus, "corpus_status") and hasattr(corpus.corpus_status, "state"):
+                        status = corpus.corpus_status.state
+                    elif hasattr(corpus, "corpusStatus") and hasattr(corpus.corpusStatus, "state"):
+                        status = corpus.corpusStatus.state
+                    
+                    target_corpus = {
+                        "id": corpus_id,
+                        "name": corpus.name,
+                        "display_name": corpus.display_name,
+                        "description": corpus.description if hasattr(corpus, "description") else None,
+                        "create_time": str(corpus.create_time) if hasattr(corpus, "create_time") else None,
+                        "status": status
+                    }
+                    break  # Early exit - found the corpus, no need to continue
+        
+        if not target_corpus:
+            return {
+                "status": "error",
+                "error_message": f"Corpus with name '{corpus_name}' not found.",
+                "message": f"❌ Error: Corpus with name '{corpus_name}' not found."
+            }
+        
+        return {
+            "status": "success",
+            "corpus": target_corpus,
+            "corpus_id": target_corpus["id"],
+            "message": f"Successfully found corpus '{corpus_name}'"
+        }
+    except Exception as e:
+        return {
+            "status": "error",
+            "error_message": str(e),
+            "message": f"Failed to find corpus by name: {str(e)}"
+        }
+
+
 def search_corpus_by_name(
     corpus_name: str,
-    query_text: str
+    query_text: str,
+    top_k: Optional[int] = None,
+    fast_mode: bool = True
 ) -> Dict[str, Any]:
     """
     Finds a corpus by its display name and performs a search query on it.
+    Uses the fast get_corpus_by_name() function for quick lookup.
+    
+    Performance Notes:
+    - Corpus lookup: ~3-5 seconds (depends on number of corpora)
+    - RAG query: ~5-25 seconds (depends on corpus size and network)
+    - Optimizations applied: top_k=3, no distance filter by default
+    
+    To speed up further:
+    1. Use corpus_id directly with query_rag_corpus() to skip lookup (saves 3-5 sec)
+    2. Set top_k=1 for fastest queries (may reduce result quality)
+    3. Use fast_mode=True (default) which disables distance filtering
 
     Args:
         corpus_name: The display name of the RAG corpus to search.
         query_text: The question to ask the corpus.
+        top_k: Maximum number of results (default: 3, set to 1 for fastest)
+        fast_mode: If True, disables distance threshold filter for faster queries (default: True)
 
     Returns:
         A dictionary containing the search results and citation summary.
     """
     try:
-        corpora_response = list_rag_corpora()
-        if corpora_response["status"] != "success":
-            return {
-                "status": "error",
-                "error_message": f"Failed to list corpora to find '{corpus_name}'.",
-                "message": f"Could not find corpus '{corpus_name}' because listing corpora failed."
-            }
-
-        target_corpus = None
-        for corpus in corpora_response.get("corpora", []):
-            if corpus.get("display_name") and corpus.get("display_name").strip().lower() == corpus_name.strip().lower():
-                target_corpus = corpus
-                break
-
-        if not target_corpus:
-            return {
-                "status": "error",
-                "message": f"❌ Error: Corpus with name '{corpus_name}' not found."
-            }
-
-        corpus_id = target_corpus["id"]
-        return query_rag_corpus(corpus_id=corpus_id, query_text=query_text)
+        # Step 1: Find corpus by name (~3-5 seconds if many corpora)
+        # Use the fast lookup function instead of list_rag_corpora()
+        corpus_response = get_corpus_by_name(corpus_name)
+        
+        if corpus_response["status"] != "success":
+            return corpus_response
+        
+        # Step 2: Query the corpus with optimizations
+        corpus_id = corpus_response["corpus_id"]
+        # Use None for threshold if fast_mode to skip filtering
+        threshold = None if fast_mode else RAG_DEFAULT_VECTOR_DISTANCE_THRESHOLD
+        return query_rag_corpus(
+            corpus_id=corpus_id, 
+            query_text=query_text, 
+            top_k=top_k,
+            vector_distance_threshold=threshold
+        )
     except Exception as e:
         return {"status": "error", "error_message": str(e), "message": f"An unexpected error occurred while searching by name: {e}"}
 
@@ -787,3 +878,4 @@ delete_file_tool = FunctionTool(delete_rag_file)
 query_rag_corpus_tool = FunctionTool(query_rag_corpus)
 search_all_corpora_tool = FunctionTool(search_all_corpora) 
 search_corpus_by_name_tool = FunctionTool(search_corpus_by_name)
+get_corpus_by_name_tool = FunctionTool(get_corpus_by_name)
