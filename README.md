@@ -391,6 +391,6 @@ How do multiple teams collaborate to operationalize GenAI models?
 How multiple teams collaborate to operationalize both models and GenAI applications?
 ```
 
-## Author
+## Author N
 
 For more articles on AI/ML and Generative AI, follow me on Medium: https://medium.com/@arjun-prabhulal
