@@ -209,17 +209,12 @@ adk web
 # Option 2: Run the agent directly in the terminal
 adk run rag
 
-# Option 3: Run with In-Memory Memory (DEFAULT - works automatically!)
-# When you run adk api_server without --memory_service_uri, it uses InMemoryMemoryService by default
+# Option 3: Run with Memory Service (ADK handles automatically!)
+# ADK has built-in memory system - no configuration needed!
+# Default: In-Memory Memory (works automatically for local development)
 adk api_server rag/
-# This is equivalent to:
-# adk api_server rag/ --memory_service_uri="inmemory://"
-# 
-# ✅ PreloadMemoryTool is already configured in the agent
-# ✅ Sessions are automatically saved to memory
-# ✅ Memory works across sessions (same user_id)
 
-# Option 4: Run with Vertex AI Memory Bank (for production - long-term knowledge across sessions)
+# For production with Vertex AI Memory Bank:
 # First, set your Agent Engine ID:
 export AGENT_ENGINE_ID="your-agent-engine-id"
 # Then start server with memory service:
@@ -228,9 +223,11 @@ adk api_server rag/ --memory_service_uri="agentengine://${AGENT_ENGINE_ID}"
 
 The web interface provides a chat-like experience for interacting with the agent, while the direct run option is suitable for scripting and automated workflows.
 
-**Memory Options:**
-- **In-Memory Memory** (Default): Perfect for local development. No setup required. See [rag/in_memory_config.py](rag/in_memory_config.py) for details.
-- **Vertex AI Memory Bank**: For production deployments with persistent storage. See [VERTEX_AI_MEMORY_BANK_SETUP.md](VERTEX_AI_MEMORY_BANK_SETUP.md) for setup.
+**Memory:**
+- ADK has built-in memory system that works automatically
+- **Default**: In-Memory Memory (no setup required, perfect for local development)
+- **Production**: Vertex AI Memory Bank (configure via `--memory_service_uri` flag)
+- See [ADK Memory Documentation](https://google.github.io/adk-docs/sessions/memory/) for details
 
 ### Example Commands
 

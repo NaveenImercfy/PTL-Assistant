@@ -41,7 +41,7 @@ AGENT_ENGINE_ID = os.environ.get("AGENT_ENGINE_ID")  # Set this to enable Memory
 # 1. Create Agent Engine in Vertex AI Console
 # 2. Set AGENT_ENGINE_ID environment variable
 # 3. Start ADK server with: --memory_service_uri="agentengine://${AGENT_ENGINE_ID}"
-# See VERTEX_AI_MEMORY_BANK_SETUP.md for detailed instructions
+# ADK handles memory automatically - no custom configuration needed!
 
 # Logging Settings
 LOG_LEVEL = "INFO"
